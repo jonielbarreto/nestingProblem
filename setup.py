@@ -10,5 +10,5 @@ setup(
    version = '0.1.0',
    license = 'MIT',
    description = 'Some heuristics for the Nesting Problem',
-   #long_description = open('README.txt').read(),
+   long_description = open('README.txt').read(),
 )
