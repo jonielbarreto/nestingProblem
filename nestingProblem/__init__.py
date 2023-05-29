@@ -12,7 +12,7 @@ from google.colab.patches import cv2_imshow
 
 
 #defaut parameters
-page_r    = [297, 210]
+page_A4   = [297, 210]
 threshold = 127               # binary image
 kernel    = np.ones((9,9), np.uint8)
 step      = 3
@@ -458,7 +458,7 @@ def random_first(PATH, pag_size = page_r, stride = step):
   print('--- Fim da execução ---> {}'.format(end_time - start_time))
   return list_ofPages
 
-def nestin_probl_funct(PATH, pag_r, stride, function_name):
+def nestin_probl_funct(PATH, pag_r = page_A4, stride = step, function_name = 'pac.FIRST_START'):
   match function_name:
     case 'pac.FIRST_START':
       list_ofPages = first_start(PATH, pag_r, stride)
