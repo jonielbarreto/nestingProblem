@@ -458,7 +458,7 @@ def random_first(PATH, pag_size = page_r, stride = step):
   print('--- Fim da execução ---> {}'.format(end_time - start_time))
   return list_ofPages
 
-def nestin_probl_funct(PATH, page_size = pag_r, stride = step, function_name = 'pac.FIRST_START'):
+def nestin_probl_funct(PATH, page_size = page_r, stride = step, function_name = 'pac.FIRST_START'):
   match function_name:
     case 'pac.FIRST_START':
       list_ofPages = first_start(PATH, pag_r, stride)
