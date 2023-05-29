@@ -461,15 +461,15 @@ def random_first(PATH, pag_size = page_r, stride = step):
 def nestin_probl_funct(PATH, page_size = page_r, stride = step, function_name = 'pac.FIRST_START'):
   match function_name:
     case 'pac.FIRST_START':
-      list_ofPages = first_start(PATH, pag_r, stride)
+      list_ofPages = first_start(PATH, page_size, stride)
       return list_ofPages
     case 'pac.WORST_FIRST':
-      list_ofPages = worst_first(PATH, pag_r, stride)
+      list_ofPages = worst_first(PATH, page_size, stride)
       return list_ofPages
     case 'pac.BEST_START':
-      list_ofPages = best_start(PATH, pag_r, stride)
+      list_ofPages = best_start(PATH, page_size, stride)
       return list_ofPages
     case 'pac.RANDOM_FIRST':
-      list_ofPages = random_first(PATH, pag_r, stride)
+      list_ofPages = random_first(PATH, page_size, stride)
       return list_ofPages
 
