@@ -12,7 +12,7 @@ from google.colab.patches import cv2_imshow
 
 
 #defaut parameters
-page_A4   = [297, 210]
+page_r    = [297, 210]
 threshold = 127               # binary image
 kernel    = np.ones((9,9), np.uint8)
 step      = 3
