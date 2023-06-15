@@ -474,7 +474,7 @@ def first_start(PATH, pag_size = page_r, stride = step):
 #####################################################################################################################################
 
 ################################################ Start with the lower white pixels density image
-def worst_first(PATH, pag_size = page_r, stride = step, alg):
+def worst_first(PATH, pag_size = page_r, stride = step, alg = 1):
   # Organizar o path por ordem da menor densidade a maior
   d = []
   path_image = [None]*len(PATH)
