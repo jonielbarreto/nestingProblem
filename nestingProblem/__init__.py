@@ -488,7 +488,7 @@ def worst_first(PATH, pag_size = page_r, stride = step, alg = 1):
   if alg == 1:
     list_ofPages = first_start(path_image, pag_size, stride)
   if alg == 2:
-    list_ofPages = couple_first(path_image)
+    list_ofPages = couple_first(path_image, pag_size, stride)
   return list_ofPages
 ######################################################################################################################################
 
