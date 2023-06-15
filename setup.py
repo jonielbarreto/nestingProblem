@@ -7,7 +7,7 @@ setup(
    author_email = 'joniel.bb@gmail.com',
    packages = ['nestingProblem'],
    install_requires = ['numpy'],
-   version = '0.1.0',
+   version = '0.2.0',
    license = 'MIT',
    description = 'Some heuristics for the Nesting Problem',
    long_description = open('README.txt').read(),
