@@ -384,7 +384,7 @@ def check_false(img, list_p, pagsize, strid):
   pos = 1
   
   for i in range(len(list_p)-2):
-    new_img, rest, flag1 = it_Fit2(img1 = img, list_path = list_p[i+2].copy(), pag_size, stride)
+    new_img, rest, flag1 = it_Fit2(img1 = img, list_path = list_p[i+2].copy(), pag_size = pagsize, stride = strid)
     if flag1 == True:
       if (densi_image(new_img) > best_den) or flag == False:
         best_img = new_img
