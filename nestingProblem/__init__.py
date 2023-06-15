@@ -378,8 +378,8 @@ def couple_outPath(list_img, pag_size, stride):
   return best_img, pos, flag
 
 # Check if fit one image of the couple or both separated (only for the 'couple_first' heuristic)
-def check_false(img, list_p, pag_size, stride):
-  best_img, b_list, flag = it_Fit2(img1 = img, list_path = list_p[1].copy(), pag_size, stride)
+def check_false(img, list_p, pagsize, strid):
+  best_img, b_list, flag = it_Fit2(img1 = img, list_path = list_p[1].copy(), pag_size = pagsize, stride = strid)
   best_den = densi_image(best_img)
   pos = 1
   
