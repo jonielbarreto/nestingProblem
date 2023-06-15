@@ -572,7 +572,7 @@ def couple_first(PATH, pag_size = page_r, stride = step):
       list_ofImages.pop(pos)
       list_ofPaths.pop(pos)
     else:
-      new_img, rest_list, pos, flag = check_false(img = list_ofImages[0].copy(), list_p = list_ofPaths.copy(), pag_size, stride)
+      new_img, rest_list, pos, flag = check_false(img = list_ofImages[0].copy(), list_p = list_ofPaths.copy(), pagsize = pag_size, strid = stride)
       if flag == True:
         list_ofImages[0] = new_img
         if len(rest_list) != 0:
