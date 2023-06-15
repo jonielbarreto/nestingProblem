@@ -80,7 +80,7 @@ def new_dst(img1, a2, l2, a):
       sum_w = 0
       for ii in range(int((1/3)*l2)):
         sum_w = sum_w + img1[a[1], a[0]+ii]
-      if sum_w == 0:                                 # Verifica se os pixels a direita são vazios
+      if sum_w == 0:                                 # Checks if the pixels on the right are empty
         if a[0]+l2 > img1.shape[1]:
           if a[1]+a2 > img1.shape[0]:
             dst = Image.new('L', (a[0]+l2, a[1]+a2), color = 0)
@@ -205,6 +205,27 @@ def it_Fit(img1, img2, pag_size = page_r, stride = step, mask = kernel):
       best_img, flag = best_fit_rotation(img1, img2, cnt, pag_size, stride)
   return best_img, flag
 
+# Function to check if it fits at least one image of the pair (only for the 'couple_first' heuristic)
+def it_Fit2(img1, list_path, pag_size, stride):
+  kernel2 = np.ones((9,9), np.uint8)
+  back_up = list_path.copy()
+  flag = False
+  
+  cont = 0
+  for id in range(len(back_up)):
+    best_img, flag1 = it_Fit(img1, call_Image(back_up[id]), pag_size, stride, kernel2)
+    if (flag1 == True) and (len(best_img) != 0):
+      img1 = best_img
+      if cont == 0:
+        list_path.pop(id)
+      else:
+        list_path.pop(0)
+      cont = 1
+    
+  if cont == 1:
+    flag = True
+  return img1, list_path, flag
+
 # Function to concatenate images of different sizes horizontally
 def get_concat_h(im1, im2):
     dst = Image.new('L', (im1.shape[1] + im2.shape[1], max(im1.shape[0], im2.shape[0])), color=0) # create a new image with the greatest height and sum of widths
@@ -276,7 +297,7 @@ def best_match_Image(img, path, pag_size = page_r, stride = step):
         flag = True
     best_den = densi_image(best_img)
 
-  else: # Caso If there wasn't a fit with image 2
+  else: # If there wasn't a fit with image 2
     best_img, flag = best_match(img, img2, pag_size)
     best_den = densi_image(best_img)
 
@@ -318,6 +339,62 @@ def start_couple(path, pag_size = page_r, stride = step):
   new_path = [x for x in new_path if x != drop_path]
   return new_img, new_path
 
+# Start with matching couple of the images (only for the 'couple_first' heuristic)
+def couple_outPath(list_img, pag_size, stride):
+  img1 = list_img[0]
+  img2 = list_img[1]
+  best_img, flag = it_Fit(img1, img2, pag_size, stride)
+  pos = 1
+
+  if len(best_img) > 0: # If there was a fit with the image
+    b_img, f2 = best_match(img1, img2, pag_size)
+    if f2 == True:
+      if (flag == False) or (densi_image(b_img) > densi_image(best_img)):
+        best_img = b_img
+        flag = True
+    best_den = densi_image(best_img)
+
+  else: # If there wasn't a fit with the image
+    best_img, flag = best_match(img1, img2, pag_size)
+    best_den = densi_image(best_img)
+  
+  for i in range(len(list_img)-2):
+    img2 = list_img[i+2]
+    new_img, flag1 = it_Fit(img1, img2, pag_size, stride)
+    if len(new_img) > 0:
+      if flag1 == True:
+        if (densi_image(new_img) > best_den) or (flag == False):
+          best_img = new_img
+          best_den = densi_image(new_img)
+          pos = i+2
+          flag = True
+    new_img, flag1 = best_match(img1, img2, pag_size)
+    if flag1 == True:
+      if (densi_image(new_img) > best_den) or (flag == False):
+        best_img = new_img
+        best_den = densi_image(new_img)
+        pos = i+2
+        flag = True
+  return best_img, pos, flag
+
+# Check if fit one image of the couple or both separated (only for the 'couple_first' heuristic)
+def check_false(img, list_p, pag_size, stride):
+  best_img, b_list, flag = it_Fit2(img1 = img, list_path = list_p[1].copy(), pag_size, stride)
+  best_den = densi_image(best_img)
+  pos = 1
+  
+  for i in range(len(list_p)-2):
+    new_img, rest, flag1 = it_Fit2(img1 = img, list_path = list_p[i+2].copy(), pag_size, stride)
+    if flag1 == True:
+      if (densi_image(new_img) > best_den) or flag == False:
+        best_img = new_img
+        b_list = rest
+        best_den = densi_image(new_img)
+        pos = i+2
+        flag = True
+  return best_img, b_list, pos, flag
+
+
 ################################################################################## HEURISTIC #####################################################################################
 
 ################################################## Start with the best pair
@@ -352,12 +429,11 @@ def best_start(PATH, pag_size = page_r, stride = step):
       list_ofPages.append(p)
       break
   end_time = datetime.now()
-  # --- fim de execução ---
-  print('--- Fim da execução ---> {}'.format(end_time - start_time))
+  print('--- End of execution ---> {}'.format(end_time - start_time))
   return list_ofPages
 ##########################################################################################################################################
 
-####################################################### Iniciar com a primeira imagem
+####################################################### Start with the first image
 def first_start(PATH, pag_size = page_r, stride = step):
   start_time = datetime.now()
   list_ofPages = []
@@ -393,13 +469,12 @@ def first_start(PATH, pag_size = page_r, stride = step):
       break
   
   end_time = datetime.now()
-  # --- fim de execução ---
-  print('--- Fim da execução ---> {}'.format(end_time - start_time))
+  print('--- End of execution ---> {}'.format(end_time - start_time))
   return list_ofPages
 #####################################################################################################################################
 
-################################################ Iniciar com a imagem de menor densidade
-def worst_first(PATH, pag_size = page_r, stride = step):
+################################################ Start with the lower white pixels density image
+def worst_first(PATH, pag_size = page_r, stride = step, alg):
   # Organizar o path por ordem da menor densidade a maior
   d = []
   path_image = [None]*len(PATH)
@@ -410,13 +485,14 @@ def worst_first(PATH, pag_size = page_r, stride = step):
   for id in sort_index:
     path_image[i] = PATH[id]
     i = i+1
-  
-  list_ofPages = first_start(path_image, pag_size, stride)
-  #list_ofPages = couple_first(path_image)
+  if alg == 1:
+    list_ofPages = first_start(path_image, pag_size, stride)
+  if alg == 2:
+    list_ofPages = couple_first(path_image)
   return list_ofPages
 ######################################################################################################################################
 
-###################################################### Iniciar com uma imagem aleatória
+###################################################### Start with a random image
 def random_first(PATH, pag_size = page_r, stride = step):
   start_time = datetime.now()
   list_ofPages = []
@@ -454,8 +530,68 @@ def random_first(PATH, pag_size = page_r, stride = step):
       break
   
   end_time = datetime.now()
-  # --- fim de execução ---
-  print('--- Fim da execução ---> {}'.format(end_time - start_time))
+  print('--- End of execution ---> {}'.format(end_time - start_time))
+  return list_ofPages
+##########################################################################################################################################
+
+######################################### Start with matching pair of the images
+def couple_first(PATH, pag_size = page_r, stride = step):
+  start_time = datetime.now()
+  list_ofImages = []
+  list_ofPages  = []
+  list_ofPaths  = []
+
+  # Pair the images
+  while len(PATH) > 0:
+    pair_path   = []
+    # If the number of images is odd
+    if len(PATH) == 1:
+      list_ofImages.append(call_Image(PATH[0]))
+      list_ofPaths.append([PATH[0]])
+      img_path = []
+    else:
+      aux_img = call_Image(PATH[0])
+      pair_path.append(PATH[0])
+      new_path = [x for x in PATH if x != PATH[0]]
+      Img, dPath, f = best_match_Image(aux_img, new_path, pag_size, stride)
+      list_ofImages.append(Img)
+      pair_path.append(dPath)
+      PATH = [x for x in new_path if x != dPath]
+      list_ofPaths.append(pair_path)
+
+  while True:
+    if len(list_ofImages) == 1:
+      p = paperA4(pag_size)
+      p[0:list_ofImages[0].shape[0], 0:list_ofImages[0].shape[1]] = list_ofImages[0]
+      list_ofPages.append(p)
+      break
+      
+    new_img, pos, flag = couple_outPath(list_ofImages, pag_size, stride)
+    if flag == True:
+      list_ofImages[0] = new_img
+      list_ofImages.pop(pos)
+      list_ofPaths.pop(pos)
+    else:
+      new_img, rest_list, pos, flag = check_false(img = list_ofImages[0].copy(), list_p = list_ofPaths.copy(), pag_size, stride)
+      if flag == True:
+        list_ofImages[0] = new_img
+        if len(rest_list) != 0:
+          list_ofPaths[pos] = list_ofPaths[1]
+          list_ofImages[pos] = list_ofImages[1]
+          list_ofPaths[1] = rest_list
+          list_ofImages[1] = call_Image(rest_list[0])
+        else:
+          list_ofImages.pop(pos)
+          list_ofPaths.pop(pos)
+      else:
+        p = paperA4(pag_size)
+        p[0:list_ofImages[0].shape[0], 0:list_ofImages[0].shape[1]] = list_ofImages[0]
+        list_ofPages.append(p)
+        list_ofImages.pop(0)
+        list_ofPaths.pop(0)
+
+  end_time = datetime.now()
+  print('--- End of execution ---> {}'.format(end_time - start_time))
   return list_ofPages
 
 def nestin_probl_funct(PATH, page_size = page_r, stride = step, function_name = 'pac.FIRST_START'):
@@ -464,12 +600,15 @@ def nestin_probl_funct(PATH, page_size = page_r, stride = step, function_name = 
       list_ofPages = first_start(PATH, page_size, stride)
       return list_ofPages
     case 'pac.WORST_FIRST':
-      list_ofPages = worst_first(PATH, page_size, stride)
+      list_ofPages = worst_first(PATH, page_size, stride, 1)
       return list_ofPages
     case 'pac.BEST_START':
       list_ofPages = best_start(PATH, page_size, stride)
       return list_ofPages
     case 'pac.RANDOM_FIRST':
       list_ofPages = random_first(PATH, page_size, stride)
+      return list_ofPages
+    case 'pac.COUPLE_FIRST':
+      list_ofPages = worst_first(PATH, page_size, stride, 2)
       return list_ofPages
 
