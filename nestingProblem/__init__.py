@@ -8,14 +8,12 @@ from glob import glob
 from PIL import Image
 from numpy import asarray
 from datetime import datetime
-from google.colab.patches import cv2_imshow
-
 
 #defaut parameters
 page_r    = [297, 210]
 threshold = 127               # binary image
 kernel    = np.ones((9,9), np.uint8)
-step      = 3
+distance  = 10
 
 # Create the page
 def paperA4(pag_size = page_r):
@@ -41,6 +39,12 @@ def densi_image(img):
   area = img.shape[0]*img.shape[1]
   dens = white_p/area
   return dens
+  
+# Function to calculate the distance
+def distanceCalculate(p1, p2):
+    """p1 and p2 in format (x1,y1) and (x2,y2) tuples"""
+    dis = ((p2[0] - p1[0]) ** 2 + (p2[1] - p1[1]) ** 2) ** 0.5
+    return dis
 
 # Function that creates the background image (in case if it increase height or width)
 def new_dst(img1, a2, l2, a):
@@ -142,38 +146,49 @@ def check_dst(dst, img1, img2, caso, a):
   return dst, bandeira
 
 # Function to search for the best fitting position
-def best_fit(img1, img2, cnt, pag_size = page_r, stride = step):
+def best_fit(img1, img2, cnt, pag_size = page_r, d = distance):
   id = 0
   best_img = []
   flag = True
+  pos_act = cnt[0,:]
+  
+  if len(cnt) < 200:
+    dist = d
+  elif len(cnt) >= 200 and len(cnt) < 500:
+    dist = d+15
+  else:
+    dist = d+35
+  
   while(id < len(cnt)):
-    dst, caso = new_dst(img1, img2.shape[0], img2.shape[1], cnt[id,:])
-    dst, bandeira = check_dst(dst, img1, img2, caso, cnt[id,:])
-    if bandeira == True:
-      if len(best_img) > 0:
-        if flag == False:
-          if (dst.shape[0] <= pag_size[0]) and (dst.shape[1] <= pag_size[1]):
-            best_img = dst
-            flag = True
-        else:
-          if densi_image(dst) > densi_image(best_img):
+    if distanceCalculate(cnt[id], pos_act) >= dist:
+      dst, caso = new_dst(img1, img2.shape[0], img2.shape[1], cnt[id,:])
+      dst, bandeira = check_dst(dst, img1, img2, caso, cnt[id,:])
+      if bandeira == True:
+        if len(best_img) > 0:
+          if flag == False:
             if (dst.shape[0] <= pag_size[0]) and (dst.shape[1] <= pag_size[1]):
               best_img = dst
               flag = True
-      else:
-        best_img = dst
-        if (best_img.shape[0] > pag_size[0]) or (best_img.shape[1] > pag_size[1]):
-          flag = False
-    id = id+stride
+          else:
+            if densi_image(dst) > densi_image(best_img):
+              if (dst.shape[0] <= pag_size[0]) and (dst.shape[1] <= pag_size[1]):
+                best_img = dst
+                flag = True
+        else:
+          best_img = dst
+          if (best_img.shape[0] > pag_size[0]) or (best_img.shape[1] > pag_size[1]):
+            flag = False
+      pos_act = cnt[id,:]
+    id = id+1
   return best_img, flag
 
 # Function to find the best rotation and fitting position
-def best_fit_rotation(img1, img2, cnt, pag_size = page_r, stride = step):
+def best_fit_rotation(img1, img2, cnt, pag_size = page_r, dist = distance):
   flag = True
-  best_img, flag = best_fit(img1, img2, cnt, pag_size, stride)
+  best_img, flag = best_fit(img1, img2, cnt, pag_size, dist)
   angles = [cv2.ROTATE_90_CLOCKWISE, cv2.ROTATE_180, cv2.ROTATE_90_COUNTERCLOCKWISE]
   for a in angles:
-    new_img, flag1 = best_fit(img1, cv2.rotate(img2, a), cnt, pag_size, stride)
+    new_img, flag1 = best_fit(img1, cv2.rotate(img2, a), cnt, pag_size, dist)
     if len(new_img) > 0:
       if len(best_img) > 0:
         if flag1 == True:
@@ -186,12 +201,12 @@ def best_fit_rotation(img1, img2, cnt, pag_size = page_r, stride = step):
   return best_img, flag
 
 # Function to check if an image fits in another
-def it_Fit(img1, img2, pag_size = page_r, stride = step, mask = kernel):
+def it_Fit(img1, img2, pag_size = page_r, dist = distance, mask = kernel):
   flag = True
   best_img = []
   img_dilation = cv2.dilate(img1, mask, iterations=1)
   img_dilation = figureBinary(img_dilation, threshold)
-  contours, hierarchy = cv2.findContours(img_dilation, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+  contours, hierarchy = cv2.findContours(img_dilation, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
 
   areas = []
   for i in range(len(contours)):
@@ -202,29 +217,29 @@ def it_Fit(img1, img2, pag_size = page_r, stride = step, mask = kernel):
       cnt = contours[idx][:,0,:]
       cnt = cnt[~(cnt[:,0] == 0), :]
       cnt = cnt[~(cnt[:,1] == 0), :]
-      best_img, flag = best_fit_rotation(img1, img2, cnt, pag_size, stride)
+      best_img, flag = best_fit_rotation(img1, img2, cnt, pag_size, dist)
   return best_img, flag
 
 # Function to check if it fits at least one image of the pair (only for the 'couple_first' heuristic)
-def it_Fit2(img1, list_path, pag_size, stride):
-  kernel2 = np.ones((9,9), np.uint8)
-  back_up = list_path.copy()
+def it_Fit2(img1, list_path, pag_size, dist):
+  kernel2 = np.ones((5,5), np.uint8)
+  back_up = []
   flag = False
   
-  cont = 0
-  for id in range(len(back_up)):
-    best_img, flag1 = it_Fit(img1, call_Image(back_up[id]), pag_size, stride, kernel2)
+  for id in range(len(list_path)):
+    best_img, flag1 = it_Fit(img1, call_Image(list_path[id]), pag_size, dist, kernel2)
+    if flag1 == False:
+      best_img, flag1 = best_match(img1, call_Image(list_path[id]), pag_size)
     if (flag1 == True) and (len(best_img) != 0):
       img1 = best_img
-      if cont == 0:
-        list_path.pop(id)
-      else:
-        list_path.pop(0)
-      cont = 1
-    
-  if cont == 1:
-    flag = True
-  return img1, list_path, flag
+      list_path[id] = []
+      flag = True
+	  
+  for i in range(len(list_path)):
+    if len(list_path[i]) > 0:
+      back_up.append(list_path[i])
+
+  return img1, back_up, flag
 
 # Function to concatenate images of different sizes horizontally
 def get_concat_h(im1, im2):
@@ -282,11 +297,10 @@ def best_match(img1, img2, pag_size = page_r):
 
   return best_img, flag
 
-
 # Best match
-def best_match_Image(img, path, pag_size = page_r, stride = step):
+def best_match_Image(img, path, pag_size = page_r, dist = distance):
   img2     = call_Image(path[0])
-  best_img, flag = it_Fit(img, img2, pag_size, stride)
+  best_img, flag = it_Fit(img, img2, pag_size, dist)
   best_path = path[0]
   
   if len(best_img) > 0: # If there was a fit with image 2
@@ -303,7 +317,7 @@ def best_match_Image(img, path, pag_size = page_r, stride = step):
 
   for i in range(len(path)-1):
     img2 = call_Image(path[i+1])
-    new_img, flag1 = it_Fit(img, img2, pag_size, stride)
+    new_img, flag1 = it_Fit(img, img2, pag_size, dist)
     if len(new_img) > 0:
       if flag1 == True:
         if (densi_image(new_img) > best_den) or (flag == False):
@@ -322,15 +336,15 @@ def best_match_Image(img, path, pag_size = page_r, stride = step):
   return best_img, best_path, flag
 
 # Start with the best 2 matching images
-def start_couple(path, pag_size = page_r, stride = step):
+def start_couple(path, pag_size = page_r, dist = distance):
   img1 = call_Image(path[0])
   new_path = [x for x in path if x != path[0]]
-  new_img, drop_path, f = best_match_Image(img1, new_path, pag_size, stride)
+  new_img, drop_path, f = best_match_Image(img1, new_path, pag_size, dist)
 
   for i in range(len(path)-1):
     img = call_Image(path[i+1])
     aux_path = [x for x in path if x != path[i+1]]
-    img_aux, drop_aux, f = best_match_Image(img, aux_path, pag_size, stride)
+    img_aux, drop_aux, f = best_match_Image(img, aux_path, pag_size, dist)
     if densi_image(img_aux) > densi_image(new_img):
       new_img = img_aux
       drop_path = drop_aux
@@ -340,10 +354,10 @@ def start_couple(path, pag_size = page_r, stride = step):
   return new_img, new_path
 
 # Start with matching couple of the images (only for the 'couple_first' heuristic)
-def couple_outPath(list_img, pag_size, stride):
+def couple_outPath(list_img, pag_size, dist):
   img1 = list_img[0]
   img2 = list_img[1]
-  best_img, flag = it_Fit(img1, img2, pag_size, stride)
+  best_img, flag = it_Fit(img1, img2, pag_size, dist)
   pos = 1
 
   if len(best_img) > 0: # If there was a fit with the image
@@ -360,7 +374,7 @@ def couple_outPath(list_img, pag_size, stride):
   
   for i in range(len(list_img)-2):
     img2 = list_img[i+2]
-    new_img, flag1 = it_Fit(img1, img2, pag_size, stride)
+    new_img, flag1 = it_Fit(img1, img2, pag_size, dist)
     if len(new_img) > 0:
       if flag1 == True:
         if (densi_image(new_img) > best_den) or (flag == False):
@@ -378,13 +392,13 @@ def couple_outPath(list_img, pag_size, stride):
   return best_img, pos, flag
 
 # Check if fit one image of the couple or both separated (only for the 'couple_first' heuristic)
-def check_false(img, list_p, pagsize, strid):
-  best_img, b_list, flag = it_Fit2(img1 = img, list_path = list_p[1].copy(), pag_size = pagsize, stride = strid)
+def check_false(img, list_p, pagsize, dists):
+  best_img, b_list, flag = it_Fit2(img1 = img, list_path = list_p[1].copy(), pag_size = pagsize, dist = dists)
   best_den = densi_image(best_img)
   pos = 1
   
   for i in range(len(list_p)-2):
-    new_img, rest, flag1 = it_Fit2(img1 = img, list_path = list_p[i+2].copy(), pag_size = pagsize, stride = strid)
+    new_img, rest, flag1 = it_Fit2(img1 = img, list_path = list_p[i+2].copy(), pag_size = pagsize, dist = dists)
     if flag1 == True:
       if (densi_image(new_img) > best_den) or flag == False:
         best_img = new_img
@@ -394,18 +408,79 @@ def check_false(img, list_p, pagsize, strid):
         flag = True
   return best_img, b_list, pos, flag
 
+def reunitedImg(PATH, pag_size = page_r, dist = distance):
+  list_I, rest_l = [], []
+  img1 = call_Image(PATH[0])
+  new_path = [x for x in PATH if x != PATH[0]]
+  aux_img, drop_path, f = best_match_Image(img1, new_path, pag_size, dist)
+  new_path = [x for x in new_path if x != drop_path]
+  
+  if len(new_path) > 0:
+    list_I.append(aux_img)
+    list_I.append(call_Image(new_path[0]))
+    rest_l.append([PATH[0]]+[drop_path])
+    rest_l.append([new_path[0]])
+  else:
+    list_I = aux_img
+    rest_l = PATH
+  return list_I, rest_l
+  
+def pairInTwo(PATH, pag_size = page_r, dist = distance):
+  list_ofImages = []
+  list_ofPaths = []
+
+  while len(PATH) > 0:
+    pair_path   = []
+    if len(PATH) == 1:
+      list_ofImages.append(call_Image(PATH[0]))
+      list_ofPaths.append([PATH[0]])
+      PATH = []
+    else:
+      aux_img = call_Image(PATH[0])
+      pair_path.append(PATH[0])
+      new_path = [x for x in PATH if x != PATH[0]]
+      Img, dPath, f = best_match_Image(aux_img, new_path, pag_size, dist)
+      if f == True:
+        list_ofImages.append(Img)
+        pair_path.append(dPath)
+        PATH = [x for x in new_path if x != dPath]
+      list_ofPaths.append(pair_path)
+  return list_ofImages, list_ofPaths
+
+def pairInPair(PATH, pag_size = page_r, dist = distance):
+  list_ofImages, list_ofPaths = pairInTwo(PATH, pag_size, dist)
+  list_ofImages2 = []
+  list_ofPaths2  = []
+  while True:
+    if len(list_ofImages) == 1:
+      list_ofImages2.append(list_ofImages[0])
+      list_ofPaths2.append(list_ofPaths[0])
+      list_ofImages.pop(0)
+      list_ofPaths.pop(0)
+      break
+    new_img, pos, flag = couple_outPath(list_ofImages, pag_size, dist)
+    if flag == True:
+      list_ofImages2.append(new_img)
+      list_ofPaths2.append(list_ofPaths[0]+list_ofPaths[pos])
+      list_ofImages.pop(pos)
+      list_ofImages.pop(0)
+      list_ofPaths.pop(pos)
+      list_ofPaths.pop(0)    
+    if len(list_ofImages) == 0:
+      break
+  return list_ofImages2, list_ofPaths2
 
 ################################################################################## HEURISTIC #####################################################################################
 
 ################################################## Start with the best pair
-def best_start(PATH, pag_size = page_r, stride = step):
+def best_start(PATH, pag_size = page_r, dist = distance):
   start_time = datetime.now()
   list_ofPages = []
   flag = True
-  new_img, new_path = start_couple(PATH, pag_size, stride)
+  new_img, new_path = start_couple(PATH, pag_size, dist)
 
   while True:
-    aux_img, drop_path, flag = best_match_Image(new_img, new_path, pag_size, stride)
+    aux_img, drop_path, flag = best_match_Image(new_img, new_path, pag_size, dist)
     if flag == True:
       new_img = aux_img
       new_path = [x for x in new_path if x != drop_path]
@@ -420,7 +495,7 @@ def best_start(PATH, pag_size = page_r, stride = step):
         list_ofPages.append(p)
         break
       else:
-        new_img, new_path = start_couple(new_path, pag_size, stride)
+        new_img, new_path = start_couple(new_path, pag_size, dist)
         flag = True
       
     if len(new_path) == 0:
@@ -434,7 +509,7 @@ def best_start(PATH, pag_size = page_r, stride = step):
 ##########################################################################################################################################
 
 ####################################################### Start with the first image
-def first_start(PATH, pag_size = page_r, stride = step):
+def first_start(PATH, pag_size = page_r, dist = distance):
   start_time = datetime.now()
   list_ofPages = []
   flag = True
@@ -442,7 +517,7 @@ def first_start(PATH, pag_size = page_r, stride = step):
   new_path = [x for x in PATH if x != PATH[0]]
 
   while True:
-    aux_img, drop_path, flag = best_match_Image(new_img, new_path, pag_size, stride)
+    aux_img, drop_path, flag = best_match_Image(new_img, new_path, pag_size, dist)
     if flag == True:
       new_img = aux_img
       new_path = [x for x in new_path if x != drop_path]
@@ -474,7 +549,7 @@ def first_start(PATH, pag_size = page_r, stride = step):
 #####################################################################################################################################
 
 ################################################ Start with the lower white pixels density image
-def worst_first(PATH, pag_size = page_r, stride = step, alg = 1):
+def worst_first(PATH, pag_size = page_r, dist = distance, alg = 1):
   # Organizar o path por ordem da menor densidade a maior
   d = []
   path_image = [None]*len(PATH)
@@ -486,14 +561,14 @@ def worst_first(PATH, pag_size = page_r, stride = step, alg = 1):
     path_image[i] = PATH[id]
     i = i+1
   if alg == 1:
-    list_ofPages = first_start(path_image, pag_size, stride)
+    list_ofPages = first_start(path_image, pag_size, dist)
   if alg == 2:
-    list_ofPages = couple_first(path_image, pag_size, stride)
+    list_ofPages = couple_first(path_image, pag_size, dist)
   return list_ofPages
 ######################################################################################################################################
 
 ###################################################### Start with a random image
-def random_first(PATH, pag_size = page_r, stride = step):
+def random_first(PATH, pag_size = page_r, dist = distance):
   start_time = datetime.now()
   list_ofPages = []
   flag = True
@@ -502,7 +577,7 @@ def random_first(PATH, pag_size = page_r, stride = step):
   new_path = [x for x in PATH if x != drop_path]
 
   while True:
-    aux_img, drop_path, flag = best_match_Image(new_img, new_path, pag_size, stride)
+    aux_img, drop_path, flag = best_match_Image(new_img, new_path, pag_size, dist)
     if flag == True:
       new_img = aux_img
       new_path = [x for x in new_path if x != drop_path]
@@ -535,29 +610,10 @@ def random_first(PATH, pag_size = page_r, stride = step):
 ##########################################################################################################################################
 
 ######################################### Start with matching pair of the images
-def couple_first(PATH, pag_size = page_r, stride = step):
+def couple_first(PATH, pag_size = page_r, dist = distance):
   start_time = datetime.now()
-  list_ofImages = []
   list_ofPages  = []
-  list_ofPaths  = []
-
-  # Pair the images
-  while len(PATH) > 0:
-    pair_path   = []
-    # If the number of images is odd
-    if len(PATH) == 1:
-      list_ofImages.append(call_Image(PATH[0]))
-      list_ofPaths.append([PATH[0]])
-      img_path = []
-    else:
-      aux_img = call_Image(PATH[0])
-      pair_path.append(PATH[0])
-      new_path = [x for x in PATH if x != PATH[0]]
-      Img, dPath, f = best_match_Image(aux_img, new_path, pag_size, stride)
-      list_ofImages.append(Img)
-      pair_path.append(dPath)
-      PATH = [x for x in new_path if x != dPath]
-      list_ofPaths.append(pair_path)
+  list_ofImages, list_ofPaths = pairInPair(PATH, pag_size, dist)
 
   while True:
     if len(list_ofImages) == 1:
@@ -566,20 +622,34 @@ def couple_first(PATH, pag_size = page_r, stride = step):
       list_ofPages.append(p)
       break
       
-    new_img, pos, flag = couple_outPath(list_ofImages, pag_size, stride)
+    new_img, pos, flag = couple_outPath(list_ofImages, pag_size, dist)
     if flag == True:
       list_ofImages[0] = new_img
       list_ofImages.pop(pos)
       list_ofPaths.pop(pos)
     else:
-      new_img, rest_list, pos, flag = check_false(img = list_ofImages[0].copy(), list_p = list_ofPaths.copy(), pagsize = pag_size, strid = stride)
+      new_img, rest_list, pos, flag = check_false(img = list_ofImages[0].copy(), list_p = list_ofPaths.copy(), pagsize = pag_size, dists = dist)
       if flag == True:
         list_ofImages[0] = new_img
-        if len(rest_list) != 0:
-          list_ofPaths[pos] = list_ofPaths[1]
-          list_ofImages[pos] = list_ofImages[1]
-          list_ofPaths[1] = rest_list
-          list_ofImages[1] = call_Image(rest_list[0])
+        if len(rest_list) == 1:
+          if densi_image(call_Image(rest_list[0])) < densi_image(list_ofImages[1]):
+            list_ofPaths[pos] = list_ofPaths[1]
+            list_ofImages[pos] = list_ofImages[1]
+            list_ofPaths[1] = rest_list
+            list_ofImages[1] = call_Image(rest_list[0])
+          else:
+            list_ofPaths[pos] = rest_list
+            list_ofImages[pos] = call_Image(rest_list[0])
+        elif len(rest_list) > 1:
+          rest_img, rest_l = reunitedImg(rest_list, pag_size, dist)
+          if len(rest_list) == 3: 
+            list_ofPaths[pos] = rest_l[0]
+            list_ofPaths.append(rest_l[1])
+            list_ofImages[pos] = rest_img[0]
+            list_ofImages.append(rest_img[1])
+          else:
+            list_ofPaths[pos] = rest_l
+            list_ofImages[pos] = rest_img
         else:
           list_ofImages.pop(pos)
           list_ofPaths.pop(pos)
@@ -589,26 +659,24 @@ def couple_first(PATH, pag_size = page_r, stride = step):
         list_ofPages.append(p)
         list_ofImages.pop(0)
         list_ofPaths.pop(0)
-
   end_time = datetime.now()
   print('--- End of execution ---> {}'.format(end_time - start_time))
   return list_ofPages
 
-def nestin_probl_funct(PATH, page_size = page_r, stride = step, function_name = 'pac.FIRST_START'):
+def nestin_probl_funct(PATH, page_size = page_r, dist = distance, function_name = 'pac.FIRST_START'):
   match function_name:
     case 'pac.FIRST_START':
-      list_ofPages = first_start(PATH, page_size, stride)
+      list_ofPages = first_start(PATH, page_size, dist)
       return list_ofPages
     case 'pac.WORST_FIRST':
-      list_ofPages = worst_first(PATH, page_size, stride, 1)
+      list_ofPages = worst_first(PATH, page_size, dist, 1)
       return list_ofPages
     case 'pac.BEST_START':
-      list_ofPages = best_start(PATH, page_size, stride)
+      list_ofPages = best_start(PATH, page_size, dist)
       return list_ofPages
     case 'pac.RANDOM_FIRST':
-      list_ofPages = random_first(PATH, page_size, stride)
+      list_ofPages = random_first(PATH, page_size, dist)
       return list_ofPages
     case 'pac.COUPLE_FIRST':
-      list_ofPages = worst_first(PATH, page_size, stride, 2)
+      list_ofPages = worst_first(PATH, page_size, dist, 2)
       return list_ofPages
-
