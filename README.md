@@ -13,7 +13,7 @@ Python package [nestingProblem](https://github.com/jonielbarreto/nestingProblem)
 
 nestin_probl_funct(PATH,
 		   page_size = page_r,
-		   stride = step,
+		   dist = distance,
 		   function_name = 'pac.FIRST_START')
 ```
 
@@ -24,8 +24,8 @@ nestin_probl_funct(PATH,
 * **page_size**: _list of int [page_height, page_width]_<br/>
 > Size of the page (space) where the objects must be packing. Expected a list of two elements. Default value: Paper A4 size. 
 
-* **stride**: _int_<br/>
-> Step size for choosing contour points. Default value: 3.
+* **dist**: _int_<br/>
+> Distance of a point of the contour to another point. Default value: 10.
 
 * **function_name**: _str_<br/>
 > Choice of approach to solving the nesting problem. Expected one of ('pac.FIRST_START', 'pac.WORST_FIRST', 'pac.BEST_START', 'pac.RANDOM_FIRST'). Default value: 'pac.FIRST_START'
