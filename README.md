@@ -28,7 +28,7 @@ nestin_probl_funct(PATH,
 > Distance of a point of the contour to another point. Default value: 10.
 
 * **function_name**: _str_<br/>
-> Choice of approach to solving the nesting problem. Expected one of ('pac.FIRST_START', 'pac.WORST_FIRST', 'pac.BEST_START', 'pac.RANDOM_FIRST'). Default value: 'pac.FIRST_START'
+> Choice of approach to solving the nesting problem. Expected one of ('pac.FIRST_START', 'pac.WORST_FIRST', 'pac.BEST_START', 'pac.RANDOM_FIRST', 'pac.COUPLE_FIRST'). Default value: 'pac.FIRST_START'
 
 #### _Returns_
 * **list_ofPages**: _list_<br/>
